@@ -5,7 +5,12 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using WebApplication.AspNetCore.Authorization;
+using WebApplication.Data;
+using WebApplication.Extensions;
 using WebApplication.Models;
 using WebApplication.Models.ManageViewModels;
 using WebApplication.Services;
@@ -15,6 +20,7 @@ namespace WebApplication.Controllers
     [Authorize]
     public class ManageController : Controller
     {
+        private readonly ApplicationDbContext _dbContext;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IEmailSender _emailSender;
@@ -22,12 +28,14 @@ namespace WebApplication.Controllers
         private readonly ILogger _logger;
 
         public ManageController(
-        UserManager<ApplicationUser> userManager,
-        SignInManager<ApplicationUser> signInManager,
-        IEmailSender emailSender,
-        ISmsSender smsSender,
-        ILoggerFactory loggerFactory)
+            ApplicationDbContext dbContext,
+            UserManager<ApplicationUser> userManager,
+            SignInManager<ApplicationUser> signInManager,
+            IEmailSender emailSender,
+            ISmsSender smsSender,
+            ILoggerFactory loggerFactory)
         {
+            _dbContext = dbContext;
             _userManager = userManager;
             _signInManager = signInManager;
             _emailSender = emailSender;
@@ -281,6 +289,62 @@ namespace WebApplication.Controllers
                 CurrentLogins = userLogins,
                 OtherLogins = otherLogins
             });
+        }
+
+        public async Task<IActionResult> ManagePermissions()
+        {
+            var vm = new ManagePermissionsViewModel();
+            var user = await GetCurrentUserAsync();
+            var permissions = await _dbContext.UserPermissions
+                                        .Where(up => up.ApplicationUserId == user.Id)
+                                        .Select(up => up.Permission)
+                                        .ToListAsync();
+
+            _logger.LogDebug("Retrieved user {0} with {1} permissions", user.UserName, user.Permissions?.Count ?? 0);
+
+            vm.Permissions = permissions.Any() ? permissions : new List<Permission>();
+            vm.PermissionSelectItems = new[]
+            {
+                new SelectListItem { Value = ((int)Permission.Permission1).ToString(), Text = "Permission 1" },
+                new SelectListItem { Value = ((int)Permission.Permission2).ToString(), Text = "Permission 2" },
+                new SelectListItem { Value = ((int)Permission.Permission3).ToString(), Text = "Permission 3" }
+            };
+
+            return View(vm);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ManagePermissions(ManagePermissionsViewModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            if (model.Permissions.HasValue())
+            {
+                var user = await GetCurrentUserAsync();
+                if (user.Permissions == null)
+                {
+                    user.Permissions = new List<UserPermission>(
+                        model.Permissions.Select(p => new UserPermission { ApplicationUserId = user.Id, Permission = p }));
+                }
+                    
+                else
+                {
+                    user.Permissions.Clear();
+                    user.Permissions.AddRange(
+                        model.Permissions.Select(p => new UserPermission { ApplicationUserId = user.Id, Permission = p }));
+                }
+
+                _logger.LogDebug("storing {0} permission with user", user.Permissions.Count);
+
+                await _userManager.UpdateAsync(user);                
+                await _signInManager.SignInAsync(user, isPersistent: false);
+            }
+
+            return RedirectToAction(nameof(Index));
         }
 
         //

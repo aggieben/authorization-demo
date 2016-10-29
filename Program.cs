@@ -14,7 +14,7 @@ namespace WebApplication
             var host = new WebHostBuilder()
                 .UseKestrel()
                 .UseContentRoot(Directory.GetCurrentDirectory())
-                .UseIISIntegration()
+                .UseUrls("http://localhost:81")
                 .UseStartup<Startup>()
                 .Build();
 

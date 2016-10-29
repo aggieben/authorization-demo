@@ -15,6 +15,8 @@ namespace WebApplication.Data
         {
         }
 
+        public DbSet<UserPermission> UserPermissions { get; set; }
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);

@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -434,6 +432,12 @@ namespace WebApplication.Controllers
                 ModelState.AddModelError(string.Empty, "Invalid code.");
                 return View(model);
             }
+        }
+
+        
+        public IActionResult AccessDenied(string returnUrl)
+        {
+            return Content("Awww, too bad! You tried to access " + returnUrl + " and failed.");
         }
 
         #region Helpers
